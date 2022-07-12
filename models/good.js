@@ -17,6 +17,10 @@ export class Good extends Sequelize.Model {
           allowNull: false,
           defaultValue: 0,
         },
+        time: {
+          type: Sequelize.DATE,
+          allowNull: false,
+        },
       },
       {
         sequelize,

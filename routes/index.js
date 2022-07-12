@@ -19,6 +19,7 @@ router.use((req, res, next) => {
   next();
 });
 
+// 메인 페이지: 경매 진행 목록 데이터 불러오기
 router.get("/", async (req, res, next) => {
   try {
     const goods = await Good.findAll({ where: { SoldId: null } });
@@ -32,16 +33,19 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+// 회원가입
 router.get("/join", isNotLoggedIn, (req, res) => {
   res.render("join", {
     title: "회원가입 - NodeAuction",
   });
 });
 
+// 상품등록 페이지
 router.get("/good", isLoggedIn, (req, res) => {
   res.render("good", { title: "상품 등록 - NodeAuction" });
 });
 
+// 상품 이미지 등록
 try {
   fs.readdirSync("uploads");
 } catch (error) {
@@ -63,34 +67,39 @@ const upload = multer({
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+// 상품 등록: 경매시간 조정 추가하기
 router.post(
   "/good",
   isLoggedIn,
   upload.single("img"),
   async (req, res, next) => {
     try {
-      const { name, price } = req.body;
+      const { name, price, time } = req.body;
       const good = await Good.create({
         OwnerId: req.user.id,
         name,
         img: req.file.filename,
         price,
+        time,
       });
-      const end = new Date();
-      end.setDate(end.getDate() + 1);
+      const end = time;
       // 실행될 시각, 수행할 콜백함수
       schedule.scheduleJob(end, async () => {
         // 입찰가가 가장 높은 사람
         const success = await Auction.findOne({
           where: { GoodId: good.id },
-          order: [["bid,DESC"]],
+          order: [["bid", "DESC"]],
         });
+        await Good.update(
+          { SoldId: success.UserId },
+          { where: { id: good.id } }
+        );
+        await User.update(
+          { money: sequelize.literal(`money - ${success.bid}`) }, //sequelisze에서 해당 컬럼의 숫자 줄이는 방법
+          { where: { id: success.UserId } }
+        );
       });
-      await Good.update({ SoldId: success.UserId }, { where: { id: good.id } });
-      await User.update(
-        { money: sequelize.literal(`money - ${success.bid}`) }, //sequelisze에서 해당 컬럼의 숫자 줄이는 방법
-        { where: { id: success.UserId } }
-      );
       res.redirect("/");
     } catch (error) {
       console.error(error);
@@ -99,6 +108,7 @@ router.post(
   }
 );
 
+// 경매방 입장: 상품정보와, 기존 입찰 정보 조회
 router.get("/good/:id", isLoggedIn, async (req, res, next) => {
   try {
     const [good, auction] = await Promise.all([
@@ -115,6 +125,9 @@ router.get("/good/:id", isLoggedIn, async (req, res, next) => {
         order: [["bid", "ASC"]],
       }),
     ]);
+    if (req.user.id === good.OwnerId) {
+      return res.status(403).send("상품 등록자는 경매에 참여할 수 없습니다.");
+    }
     res.render("auction", {
       title: `${good.name} - NodeAuction`,
       good,
@@ -126,6 +139,7 @@ router.get("/good/:id", isLoggedIn, async (req, res, next) => {
   }
 });
 
+// 클라이언트로부터 받은 입찰 정보 저장
 router.post("/good/:id/bid", isLoggedIn, async (req, res, next) => {
   try {
     const { bid, msg } = req.body;
@@ -162,6 +176,7 @@ router.post("/good/:id/bid", isLoggedIn, async (req, res, next) => {
   }
 });
 
+// 사용자 낙찰내역 조회
 router.get("/list", isLoggedIn, async (req, res, next) => {
   try {
     const goods = await Good.findAll({
