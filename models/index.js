@@ -1,37 +1,34 @@
-'use strict';
+// Package Modules
+import Sequelize from "sequelize";
 
-const fs = require('fs');
-const path = require('path');
-const Sequelize = require('sequelize');
-const basename = path.basename(__filename);
-const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.json')[env];
-const db = {};
+// Custom Modules
+import { User } from "./user.js";
+import { Good } from "./good.js";
+import { Auction } from "./auction.js";
+import Config from "../config/config.js";
 
-let sequelize;
-if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], config);
-} else {
-  sequelize = new Sequelize(config.database, config.username, config.password, config);
-}
+const env = process.env.NODE_ENV || "development";
+const config = Config[env];
 
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js');
-  })
-  .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
-
-Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
-});
+export const db = {};
+export const sequelize = new Sequelize(
+  config.database,
+  config.username,
+  config.password,
+  config
+);
 
 db.sequelize = sequelize;
-db.Sequelize = Sequelize;
+db.User = User;
+db.Good = Good;
+db.Auction = Auction;
 
-module.exports = db;
+User.init(sequelize);
+Good.init(sequelize);
+Auction.init(sequelize);
+
+User.associate(db);
+Good.associate(db);
+Auction.associate(db);
+
+export default db;
